@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; form-action 'none'; base-uri 'none'">
+<title>Vault duplicate review</title>
+<style>
+  :root{
+    --paper:#e9edef;
+    --surface:#ffffff;
+    --surface-2:#f3f6f7;
+    --ink:#132430;
+    --ink-soft:#4a6070;
+    --line:#c6d2d9;
+    --line-soft:#dde5e9;
+    --keep:#0e6f52;
+    --keep-bg:#e4f2ec;
+    --drop:#9b2f2a;
+    --drop-bg:#f7e8e6;
+    --watch:#8a5b10;
+    --watch-bg:#faefda;
+    --focus:#1c6fb8;
+    --radius:4px;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --paper:#101a20;
+      --surface:#17242c;
+      --surface-2:#1d2d36;
+      --ink:#e4edf1;
+      --ink-soft:#9db0bc;
+      --line:#31454f;
+      --line-soft:#26373f;
+      --keep:#5fc39b;
+      --keep-bg:#13342a;
+      --drop:#e58d85;
+      --drop-bg:#3a1f1d;
+      --watch:#e0b158;
+      --watch-bg:#3a2e14;
+      --focus:#6fb6ee;
+    }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--paper); color:var(--ink);
+    font-family:var(--sans); font-size:15px; line-height:1.55;
+    padding-top: env(safe-area-inset-top,0px);
+    padding-bottom: env(safe-area-inset-bottom,0px);
+  }
+  a{color:var(--focus)}
+  :focus-visible{outline:2px solid var(--focus); outline-offset:2px}
+  .wrap{max-width:1040px;margin:0 auto;padding:0 20px}
+
+  header.bar{
+    position:sticky; top:0; z-index:20;
+    background:var(--surface); border-bottom:1px solid var(--line);
+    padding-top: env(safe-area-inset-top,0px);
+  }
+  .bar-in{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;padding:12px 0}
+  .bar h1{font-size:16px;font-weight:650;letter-spacing:-0.01em;margin:0}
+  .bar .file{font-family:var(--mono);font-size:12.5px;color:var(--ink-soft);margin-left:auto;overflow-wrap:anywhere}
+
+  /* intake */
+  .intake{padding:56px 0 80px}
+  .intake h2{
+    font-size:clamp(28px,4.4vw,42px); line-height:1.12; letter-spacing:-0.025em;
+    font-weight:660; margin:0 0 14px; max-width:19ch;
+  }
+  .lede{max-width:62ch;color:var(--ink-soft);margin:0 0 30px}
+  .drop{
+    border:1.5px dashed var(--line); border-radius:var(--radius); background:var(--surface);
+    padding:36px 28px; text-align:center; transition:border-color .12s, background .12s;
+  }
+  .drop.hot{border-color:var(--keep); background:var(--keep-bg)}
+  .drop p{margin:10px 0 0;color:var(--ink-soft);font-size:13.5px}
+  .steps{margin:34px 0 0;padding:0;list-style:none;border-top:1px solid var(--line-soft);max-width:62ch}
+  .steps li{display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--line-soft);font-size:14px}
+  .steps .n{font-family:var(--mono);color:var(--ink-soft);font-size:12.5px;padding-top:2px;min-width:1.4em}
+  .fine{font-size:13px;color:var(--ink-soft);max-width:62ch;margin-top:26px}
+
+  /* buttons */
+  button{font:inherit;cursor:pointer;border-radius:var(--radius);border:1px solid var(--line);
+    background:var(--surface);color:var(--ink);padding:8px 14px}
+  button:hover{border-color:var(--ink-soft)}
+  button:disabled{opacity:.45;cursor:default}
+  button.primary{background:var(--ink);color:var(--surface);border-color:var(--ink);font-weight:550}
+  button.primary:hover{opacity:.9}
+  button.quiet{background:transparent;border-color:transparent;color:var(--ink-soft);padding:6px 8px;text-decoration:underline;text-underline-offset:3px}
+  button.big{padding:12px 22px;font-weight:550}
+
+  /* summary + controls */
+  .summary{padding:26px 0 8px;font-size:18px;line-height:1.5;max-width:64ch;letter-spacing:-0.01em}
+  .summary b{font-weight:650}
+  .summary .warn{color:var(--watch)}
+  .notice{border-left:3px solid var(--watch);background:var(--watch-bg);color:var(--ink);
+    padding:12px 14px;margin:16px 0;font-size:13.5px;border-radius:0 var(--radius) var(--radius) 0;max-width:72ch}
+  .notice.bad{border-color:var(--drop);background:var(--drop-bg)}
+  .controls{display:flex;gap:10px 18px;flex-wrap:wrap;align-items:center;
+    padding:14px 0 18px;border-top:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);margin-top:14px}
+  .controls input[type=search]{font:inherit;padding:7px 10px;border:1px solid var(--line);border-radius:var(--radius);
+    background:var(--surface);color:var(--ink);min-width:200px;flex:1 1 220px}
+  .opt{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;color:var(--ink-soft)}
+  .opt input{accent-color:var(--focus)}
+
+  /* groups */
+  .groups{padding:20px 0 140px}
+  .group{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);margin-bottom:18px;overflow:hidden}
+  .group.review{border-color:var(--watch)}
+  .ghead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid var(--line-soft);background:var(--surface-2)}
+  .gdomain{font-family:var(--mono);font-size:15px;font-weight:600;overflow-wrap:anywhere}
+  .gmeta{font-size:13px;color:var(--ink-soft)}
+  .gmeta .user{font-family:var(--mono)}
+  .gflag{margin-left:auto;font-size:12.5px;color:var(--watch);font-weight:600}
+  .greview{padding:10px 16px;background:var(--watch-bg);color:var(--ink);font-size:13.5px;border-bottom:1px solid var(--line-soft)}
+  .greview.bad{background:var(--drop-bg);color:var(--drop);font-weight:550}
+  .gmulti{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:8px 16px;border-bottom:1px solid var(--line-soft)}
+  .gmulti label{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--ink-soft);cursor:pointer}
+  .gmulti input{accent-color:var(--keep)}
+  .gmulti .hint{font-size:12.5px;color:var(--ink-soft)}
+
+  .row{display:grid;grid-template-columns:150px 1fr;gap:0;border-bottom:1px solid var(--line-soft);border-left:4px solid transparent}
+  .row:last-child{border-bottom:none}
+  .row.keeping{border-left-color:var(--keep);background:var(--keep-bg)}
+  .row.dropping{border-left-color:var(--drop);background:var(--drop-bg)}
+  .row.dropping .rname{text-decoration:line-through;text-decoration-color:var(--drop);text-decoration-thickness:1px}
+  .rpick{padding:14px 12px 14px 14px;display:flex;flex-direction:column;gap:8px;border-right:1px solid var(--line-soft)}
+  .rpick label{display:flex;align-items:center;gap:7px;font-size:13px;cursor:pointer}
+  .rpick .del{color:var(--drop)}
+  .rbody{padding:14px 16px;min-width:0}
+  .rname{font-weight:600;overflow-wrap:anywhere}
+  .rdata{font-family:var(--mono);font-size:12.5px;color:var(--ink-soft);margin-top:3px;overflow-wrap:anywhere}
+  .tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+  .tag{font-size:11.5px;border:1px solid var(--line);border-radius:2px;padding:2px 7px;color:var(--ink-soft);background:var(--surface)}
+  .tag.sec{border-color:var(--keep);color:var(--keep);font-weight:600}
+  .empty{padding:40px 0;color:var(--ink-soft)}
+
+  footer.actions{
+    position:sticky; bottom:0; z-index:20; background:var(--surface);
+    border-top:1px solid var(--line); padding-bottom: env(safe-area-inset-bottom,0px);
+  }
+  .act-in{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 0}
+  .act-count{font-size:14px;margin-right:auto}
+  .act-count b{font-weight:650}
+  .hidden{display:none !important}
+  dialog{border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);color:var(--ink);max-width:640px;width:92vw;padding:18px}
+  dialog::backdrop{background:rgba(10,20,26,.55)}
+  dialog textarea{width:100%;height:40vh;font-family:var(--mono);font-size:12.5px;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface-2);color:var(--ink);padding:10px}
+  @media (max-width:620px){
+    .row{grid-template-columns:1fr}
+    .rpick{flex-direction:row;gap:18px;border-right:none;border-bottom:1px solid var(--line-soft)}
+  }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap bar-in">
+    <h1>Vault duplicate review</h1>
+    <span class="file" id="fileLabel"></span>
+    <button class="quiet hidden" id="clearBtn">Clear file</button>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section class="intake" id="intake">
+    <h2>Find the copies in your Bitwarden vault, keep the one that matters.</h2>
+    <p class="lede">Load an unencrypted JSON export. Entries are matched when the site, the username and the password are all identical. Passkeys and authenticator codes are read from each entry so the copy holding them is the one recommended to keep.</p>
+
+    <div class="drop" id="drop">
+      <button class="primary big" id="pickBtn">Choose export file</button>
+      <input type="file" id="fileInput" accept=".json,application/json" class="hidden">
+      <p>or drop a <span style="font-family:var(--mono)">.json</span> file here</p>
+    </div>
+
+    <ul class="steps">
+      <li><span class="n">1</span><span>In Bitwarden: Tools, then Export vault. Choose the <span style="font-family:var(--mono)">.json</span> format, not the password-protected one — this page cannot read an encrypted export.</span></li>
+      <li><span class="n">2</span><span>Review the groups here and pick a keeper in each. Nothing is changed in your vault by this page.</span></li>
+      <li><span class="n">3</span><span>Take the delete list back into Bitwarden and remove those entries there, then shred the export file.</span></li>
+    </ul>
+
+    <p class="fine">The file is read in your browser and never leaves this machine: the page loads no scripts, fonts or images from anywhere, and its content policy blocks network requests outright. Passwords are never displayed — only their length, since everything in a group shares the same one.</p>
+  </section>
+
+  <section id="results" class="hidden">
+    <div class="summary" id="summary"></div>
+    <div id="notices"></div>
+
+    <div class="controls">
+      <input type="search" id="search" placeholder="Filter by site, name or username" aria-label="Filter groups">
+      <label class="opt"><input type="checkbox" id="onlyReview"> Only groups needing a decision</label>
+      <label class="opt"><input type="checkbox" id="hostMatch"> Match full hostname instead of base domain</label>
+      <label class="opt"><input type="checkbox" id="ignorePw"> Ignore password when matching</label>
+      <button class="quiet" id="resetPicks">Reset to recommended</button>
+    </div>
+
+    <div class="groups" id="groups"></div>
+  </section>
+</main>
+
+<footer class="actions hidden" id="footer">
+  <div class="wrap act-in">
+    <span class="act-count" id="actCount"></span>
+    <button id="csvBtn">Download delete list</button>
+    <button id="copyBtn">Copy delete list</button>
+    <button class="primary" id="jsonBtn">Download cleaned vault</button>
+  </div>
+</footer>
+
+<dialog id="textDlg">
+  <p style="margin:0 0 10px;font-size:14px" id="dlgMsg"></p>
+  <textarea id="dlgText" readonly></textarea>
+  <div style="display:flex;justify-content:flex-end;margin-top:12px"><button id="dlgClose">Close</button></div>
+</dialog>
+
+<script>
+(function(){
+  "use strict";
+
+  var MULTI = ("co.uk org.uk ac.uk gov.uk me.uk net.uk sch.uk ltd.uk plc.uk co.jp ne.jp or.jp ac.jp go.jp "+
+    "com.au net.au org.au edu.au gov.au co.nz net.nz org.nz com.br net.br com.mx com.ar co.za com.sg "+
+    "com.hk com.tw com.cn net.cn org.cn co.in net.in org.in co.kr com.tr com.pl co.il com.my com.ph "+
+    "com.vn co.th com.sa com.eg co.id com.ua com.ng com.pk com.bd co.ke com.co com.pe com.ve com.uy"
+  ).split(" ");
+  var MULTISET = Object.create(null);
+  MULTI.forEach(function(s){ MULTISET[s] = true; });
+
+  var state = {
+    raw: null, fileName: "", logins: [], groups: [],
+    keep: Object.create(null),   // groupId -> { itemId: true }
+    multi: Object.create(null),  // groupId -> true when several keepers are allowed
+    del: Object.create(null),    // itemId -> true
+    stats: null, sawPasskeyField: false
+  };
+
+  var $ = function(id){ return document.getElementById(id); };
+
+  function esc(s){
+    return String(s === null || s === undefined ? "" : s)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+  }
+
+  /* ---------- domain handling ---------- */
+
+  function hostOf(uri){
+    if(!uri) return "";
+    var u = String(uri).trim();
+    if(!u) return "";
+    var low = u.toLowerCase();
+    if(low.indexOf("android://") === 0 || low.indexOf("androidapp://") === 0 || low.indexOf("iosapp://") === 0){
+      return "app:" + low.replace(/^[a-z]+:\/\//,"").replace(/\/+$/,"");
+    }
+    if(low.indexOf("://") === -1) u = "https://" + u;
+    var host;
+    try { host = new URL(u).hostname.toLowerCase(); } catch(e){ return low.replace(/^\/+|\/+$/g,""); }
+    if(!host) return "";
+    if(host.indexOf("www.") === 0) host = host.slice(4);
+    return host;
+  }
+
+  function baseDomain(host){
+    if(!host || host.indexOf("app:") === 0) return host;
+    if(/^\d{1,3}(\.\d{1,3}){3}$/.test(host) || host.indexOf(":") !== -1) return host;
+    var p = host.split(".");
+    if(p.length <= 2) return host;
+    var last2 = p.slice(-2).join(".");
+    if(MULTISET[last2] && p.length >= 3) return p.slice(-3).join(".");
+    return last2;
+  }
+
+  function domainsOf(item, hostMode){
+    var uris = (item.login && item.login.uris) || [];
+    var out = [], seen = Object.create(null);
+    for(var i=0;i<uris.length;i++){
+      var h = hostOf(uris[i] && uris[i].uri);
+      if(!h) continue;
+      var d = hostMode ? h : baseDomain(h);
+      if(!seen[d]){ seen[d] = true; out.push(d); }
+    }
+    return out;
+  }
+
+  function normUser(u){ return String(u || "").trim().toLowerCase(); }
+  function normName(n){ return String(n || "").trim().toLowerCase().replace(/\s+/g," "); }
+
+  /* ---------- parse ---------- */
+
+  function readFile(file){
+    var fr = new FileReader();
+    fr.onerror = function(){ fail("That file could not be read. Try exporting again."); };
+    fr.onload = function(){
+      var data;
+      try { data = JSON.parse(String(fr.result)); }
+      catch(e){ return fail("That is not valid JSON. Export again from Bitwarden using the .json format."); }
+      if(data && data.encrypted === true){
+        return fail("This export is encrypted. Re-export with the plain .json format — the password-protected export cannot be read here.");
+      }
+      var items = Array.isArray(data) ? data : (data && data.items);
+      if(!Array.isArray(items)){
+        return fail("No vault entries found in that file. Expected a Bitwarden JSON export containing an \"items\" list.");
+      }
+      state.raw = Array.isArray(data) ? { items: items } : data;
+      state.fileName = file.name;
+      build();
+    };
+    fr.readAsText(file);
+  }
+
+  function fail(msg){
+    $("results").classList.add("hidden");
+    $("footer").classList.add("hidden");
+    $("intake").classList.remove("hidden");
+    $("notices").innerHTML = "";
+    var stale = document.querySelector("#intake .notice");
+    if(stale) stale.remove();
+    var n = document.createElement("div");
+    n.className = "notice bad";
+    n.textContent = msg;
+    $("drop").insertAdjacentElement("afterend", n);
+  }
+
+  /* ---------- grouping ---------- */
+
+  function passkeyCount(item){
+    var f = item.login && item.login.fido2Credentials;
+    return Array.isArray(f) ? f.length : 0;
+  }
+  function hasTotp(item){
+    return !!(item.login && item.login.totp && String(item.login.totp).trim());
+  }
+
+  function build(){
+    var hostMode = $("hostMatch").checked;
+    var ignorePw = $("ignorePw").checked;
+
+    var items = state.raw.items || [];
+    var folders = Object.create(null);
+    (state.raw.folders || []).forEach(function(f){ if(f && f.id) folders[f.id] = f.name; });
+
+    var logins = [], skippedNoPw = 0;
+    state.sawPasskeyField = false;
+
+    for(var i=0;i<items.length;i++){
+      var it = items[i];
+      if(!it || it.type !== 1 || !it.login) continue;
+      if(it.deletedDate) continue;
+      if(Array.isArray(it.login.fido2Credentials)) state.sawPasskeyField = true;
+      logins.push(it);
+    }
+
+    // union-find over shareable keys
+    var parent = [];
+    function find(x){ while(parent[x] !== x){ parent[x] = parent[parent[x]]; x = parent[x]; } return x; }
+    function union(a,b){ a = find(a); b = find(b); if(a !== b) parent[b] = a; }
+
+    var keyOwner = Object.create(null);
+    var info = [];
+    for(var j=0;j<logins.length;j++){
+      parent[j] = j;
+      var it2 = logins[j];
+      var pw = it2.login.password || "";
+      var user = normUser(it2.login.username);
+      var doms = domainsOf(it2, hostMode);
+      var keys = [];
+      if(!pw && !ignorePw){
+        skippedNoPw++;
+      } else if(!pw && !user){
+        skippedNoPw++;
+      } else {
+        var pwPart = ignorePw ? "*" : pw;
+        if(doms.length === 0){
+          keys.push("n\u0000" + normName(it2.name) + "\u0000" + user + "\u0000" + pwPart);
+        } else {
+          for(var d=0; d<doms.length; d++){
+            keys.push("d\u0000" + doms[d] + "\u0000" + user + "\u0000" + pwPart);
+          }
+        }
+      }
+      info.push({ item: it2, keys: keys, doms: doms, user: user, pwLen: pw.length });
+      for(var k=0;k<keys.length;k++){
+        var kk = keys[k];
+        if(keyOwner[kk] === undefined) keyOwner[kk] = j; else union(keyOwner[kk], j);
+      }
+    }
+
+    var buckets = Object.create(null);
+    for(var m=0;m<info.length;m++){
+      if(info[m].keys.length === 0) continue;
+      var r = find(m);
+      (buckets[r] = buckets[r] || []).push(info[m]);
+    }
+
+    var groups = [];
+    Object.keys(buckets).forEach(function(rk){
+      var members = buckets[rk];
+      if(members.length < 2) return;
+
+      var domCount = Object.create(null), label = "", best = 0;
+      members.forEach(function(mm){
+        mm.doms.forEach(function(dd){
+          domCount[dd] = (domCount[dd] || 0) + 1;
+          if(domCount[dd] > best){ best = domCount[dd]; label = dd; }
+        });
+      });
+      var byName = false;
+      if(!label){ label = members[0].item.name || "(no name)"; byName = true; }
+
+      var users = Object.create(null);
+      members.forEach(function(mm){ users[mm.user || "(no username)"] = true; });
+
+      var rows = members.map(function(mm){
+        var it3 = mm.item;
+        return {
+          id: it3.id || ("idx-" + Math.random().toString(36).slice(2)),
+          item: it3,
+          name: it3.name || "(no name)",
+          user: it3.login.username || "",
+          pwLen: mm.pwLen,
+          doms: mm.doms,
+          uris: ((it3.login.uris || []).map(function(u){ return u && u.uri; }).filter(Boolean)),
+          passkeys: passkeyCount(it3),
+          totp: hasTotp(it3),
+          totpVal: (it3.login && it3.login.totp) ? String(it3.login.totp).trim() : "",
+          notes: !!(it3.notes && String(it3.notes).trim()),
+          fav: !!it3.favorite,
+          reprompt: it3.reprompt === 1,
+          folder: (it3.folderId && folders[it3.folderId]) || "",
+          org: !!it3.organizationId,
+          revision: it3.revisionDate || "",
+          created: it3.creationDate || ""
+        };
+      });
+
+      rows.forEach(function(r2){
+        r2.score = (r2.passkeys > 0 ? 100000 : 0) + (r2.totp ? 10000 : 0) + r2.uris.length * 100 +
+                   (r2.notes ? 50 : 0) + (r2.fav ? 20 : 0) + (r2.folder ? 10 : 0) +
+                   (r2.revision ? Math.min(9, Date.parse(r2.revision) > 0 ? 1 : 0) : 0);
+      });
+      rows.sort(function(a,b){
+        if(b.score !== a.score) return b.score - a.score;
+        var ta = Date.parse(a.revision) || 0, tb = Date.parse(b.revision) || 0;
+        return tb - ta;
+      });
+
+      var withPk = rows.filter(function(r3){ return r3.passkeys > 0; });
+      var withTotp = rows.filter(function(r3){ return r3.totp; });
+      var totpVals = Object.create(null);
+      withTotp.forEach(function(r3){ totpVals[r3.totpVal] = true; });
+
+      var review = null;
+      if(withPk.length > 0 && withTotp.length > 0 && !rows.some(function(r3){ return r3.passkeys > 0 && r3.totp; })){
+        review = "One copy holds a passkey and a different copy holds the authenticator code. Move them onto a single entry in Bitwarden first, then re-export — nothing here is preselected.";
+      } else if(withPk.length > 1){
+        review = "More than one copy holds a passkey. Check them in Bitwarden before deleting either; passkeys cannot be recovered from this export.";
+      } else if(Object.keys(totpVals).length > 1){
+        review = "The copies carry different authenticator secrets. Confirm which one still works before deleting the other.";
+      } else if(rows.some(function(r3){ return r3.org; }) && rows.some(function(r3){ return !r3.org; })){
+        review = "This group mixes a personal entry with one owned by an organization. Deleting the shared copy affects everyone it is shared with.";
+      }
+
+      groups.push({
+        id: "g" + groups.length,
+        label: label,
+        byName: byName,
+        users: Object.keys(users),
+        pwLen: rows[0].pwLen,
+        rows: rows,
+        review: review,
+        anySecurity: withPk.length > 0 || withTotp.length > 0
+      });
+    });
+
+    groups.sort(function(a,b){
+      if(!!b.review !== !!a.review) return b.review ? 1 : -1;
+      if(b.rows.length !== a.rows.length) return b.rows.length - a.rows.length;
+      return a.label < b.label ? -1 : a.label > b.label ? 1 : 0;
+    });
+
+    state.logins = logins;
+    state.groups = groups;
+    state.stats = {
+      logins: logins.length,
+      groups: groups.length,
+      copies: groups.reduce(function(s,g){ return s + g.rows.length; }, 0),
+      extra: groups.reduce(function(s,g){ return s + g.rows.length - 1; }, 0),
+      review: groups.filter(function(g){ return !!g.review; }).length,
+      skippedNoPw: skippedNoPw,
+      ignorePw: ignorePw
+    };
+
+    applyRecommended();
+    render();
+  }
+
+  function applyRecommended(){
+    state.keep = Object.create(null);
+    state.multi = Object.create(null);
+    state.del = Object.create(null);
+    if(state.stats && state.stats.ignorePw) return;   // too risky to guess
+    state.groups.forEach(function(g){
+      state.keep[g.id] = Object.create(null);
+      if(g.review) return;                 // decide these by hand
+      var keeper = g.rows[0];
+      state.keep[g.id][keeper.id] = true;
+      g.rows.forEach(function(r){ if(r.id !== keeper.id) state.del[r.id] = true; });
+    });
+  }
+
+  /* ---------- render ---------- */
+
+  function render(){
+    $("intake").classList.add("hidden");
+    $("results").classList.remove("hidden");
+    $("footer").classList.remove("hidden");
+    $("fileLabel").textContent = state.fileName;
+    $("clearBtn").classList.remove("hidden");
+
+    var s = state.stats;
+    var sum = "Read <b>" + s.logins + "</b> login entr" + (s.logins === 1 ? "y" : "ies") + ". ";
+    if(s.groups === 0){
+      sum += "No duplicates found under the current matching rules.";
+    } else {
+      sum += "<b>" + s.copies + "</b> of them are copies of <b>" + s.groups + "</b> entr" +
+             (s.groups === 1 ? "y" : "ies") + ", so <b>" + s.extra + "</b> can go. ";
+      sum += s.review > 0
+        ? "<span class=\"warn\">" + s.review + " group" + (s.review === 1 ? " needs" : "s need") + " a decision from you.</span>"
+        : "Every group has a clear keeper.";
+    }
+    $("summary").innerHTML = sum;
+
+    var notices = "";
+    if(s.ignorePw){
+      notices += "<div class=\"notice\">Password matching is off. These entries share a site and username but may hold different passwords — deleting one can lose a working credential. Nothing is preselected while this is on.</div>";
+    }
+    if(!state.sawPasskeyField){
+      notices += "<div class=\"notice\">No passkey data appears anywhere in this export, so passkey badges cannot be shown. Bitwarden does not always include passkeys in an export — check any entry in the app before deleting it on the assumption it has none.</div>";
+    }
+    if(s.skippedNoPw > 0 && !s.ignorePw){
+      notices += "<div class=\"notice\">" + s.skippedNoPw + " login entr" + (s.skippedNoPw === 1 ? "y has" : "ies have") +
+        " no stored password and were left out of matching.</div>";
+    }
+    $("notices").innerHTML = notices;
+
+    var q = $("search").value.trim().toLowerCase();
+    var onlyReview = $("onlyReview").checked;
+    var html = "", shown = 0;
+
+    for(var i=0;i<state.groups.length;i++){
+      var g = state.groups[i];
+      if(onlyReview && !g.review) continue;
+      if(q){
+        var hay = (g.label + " " + g.users.join(" ") + " " + g.rows.map(function(r){ return r.name; }).join(" ")).toLowerCase();
+        if(hay.indexOf(q) === -1) continue;
+      }
+      shown++;
+      html += groupHtml(g);
+    }
+
+    if(shown === 0){
+      html = "<p class=\"empty\">" + (state.groups.length === 0
+        ? "Nothing matched. Try loosening the rules above, or your vault is already tidy."
+        : "No groups match this filter.") + "</p>";
+    }
+    $("groups").innerHTML = html;
+    updateCount();
+  }
+
+  function keptIds(gid){
+    if(!state.keep[gid]) state.keep[gid] = Object.create(null);
+    return state.keep[gid];
+  }
+  function keptCountOf(gid){ return Object.keys(keptIds(gid)).length; }
+
+  // Once a group has at least one keeper, every other copy in it is marked for deletion.
+  // Does nothing while no keeper is chosen, so groups needing a decision stay untouched.
+  function markRestForDeletion(g){
+    var kept = keptIds(g.id);
+    if(Object.keys(kept).length === 0) return;
+    g.rows.forEach(function(r){ if(!kept[r.id]) state.del[r.id] = true; });
+  }
+
+  function groupHtml(g){
+    var h = "<section class=\"group" + (g.review ? " review" : "") + "\">";
+    h += "<div class=\"ghead\">";
+    h += "<span class=\"gdomain\">" + esc(g.byName ? g.label : g.label) + "</span>";
+    h += "<span class=\"gmeta\">" + g.rows.length + " copies &middot; <span class=\"user\">" +
+         esc(g.users.join(", ") || "(no username)") + "</span>" +
+         (state.stats.ignorePw ? "" : " &middot; same password, " + g.pwLen + " characters") +
+         (g.byName ? " &middot; matched on entry name, no website saved" : "") + "</span>";
+    if(g.review) h += "<span class=\"gflag\">Needs a decision</span>";
+    h += "</div>";
+
+    var multi = !!state.multi[g.id];
+    h += "<div class=\"gmulti\"><label><input type=\"checkbox\" data-multi=\"" + esc(g.id) + "\"" +
+         (multi ? " checked" : "") + "> Allow multiple credentials to be kept</label>" +
+         (multi ? "<span class=\"hint\">Tick each copy you want to keep. Everything else here is marked for deletion &mdash; clear a Delete box to leave a copy untouched instead.</span>" : "") +
+         "</div>";
+
+    if(g.review) h += "<div class=\"greview\">" + esc(g.review) + "</div>";
+
+    var kept = keptIds(g.id);
+    var keptCount = 0, delCount = 0;
+    for(var n=0;n<g.rows.length;n++){
+      if(kept[g.rows[n].id]) keptCount++;
+      if(state.del[g.rows[n].id]) delCount++;
+    }
+    if(delCount === g.rows.length){
+      h += "<div class=\"greview bad\">Every copy in this group is marked for deletion. Keep at least one unless you really want this credential gone.</div>";
+    }
+
+    for(var i=0;i<g.rows.length;i++){
+      var r = g.rows[i];
+      var keeping = !!kept[r.id];
+      var dropping = !!state.del[r.id];
+      h += "<div class=\"row" + (keeping ? " keeping" : dropping ? " dropping" : "") + "\">";
+      h += "<div class=\"rpick\">";
+      h += multi
+        ? "<label><input type=\"checkbox\" data-keepmulti=\"" + esc(g.id) + "\" value=\"" + esc(r.id) + "\"" + (keeping ? " checked" : "") + "> Keep this</label>"
+        : "<label><input type=\"radio\" name=\"keep-" + g.id + "\" data-keep=\"" + esc(g.id) + "\" value=\"" + esc(r.id) + "\"" + (keeping ? " checked" : "") + "> Keep this</label>";
+      h += "<label class=\"del\"><input type=\"checkbox\" data-del=\"" + esc(r.id) + "\" data-delgroup=\"" + esc(g.id) + "\"" + (dropping ? " checked" : "") + (keeping ? " disabled" : "") + "> Delete</label>";
+      h += "</div><div class=\"rbody\">";
+      h += "<div class=\"rname\">" + esc(r.name) + "</div>";
+      h += "<div class=\"rdata\">" + esc(r.user || "(no username)") + (r.uris.length ? " &nbsp;&middot;&nbsp; " + esc(r.uris.slice(0,3).join("  ")) + (r.uris.length > 3 ? " +" + (r.uris.length - 3) + " more" : "") : "") + "</div>";
+      h += "<div class=\"tags\">";
+      if(r.passkeys > 0) h += "<span class=\"tag sec\">" + r.passkeys + " passkey" + (r.passkeys > 1 ? "s" : "") + "</span>";
+      if(r.totp) h += "<span class=\"tag sec\">authenticator code</span>";
+      if(r.uris.length) h += "<span class=\"tag\">" + r.uris.length + " site" + (r.uris.length > 1 ? "s" : "") + "</span>";
+      if(r.notes) h += "<span class=\"tag\">note</span>";
+      if(r.folder) h += "<span class=\"tag\">" + esc(r.folder) + "</span>";
+      if(r.fav) h += "<span class=\"tag\">favorite</span>";
+      if(r.reprompt) h += "<span class=\"tag\">master password reprompt</span>";
+      if(r.org) h += "<span class=\"tag\">organization</span>";
+      if(r.revision) h += "<span class=\"tag\">changed " + esc(fmtDate(r.revision)) + "</span>";
+      h += "</div></div></div>";
+    }
+    h += "</section>";
+    return h;
+  }
+
+  function fmtDate(iso){
+    var t = Date.parse(iso);
+    if(!t) return iso;
+    var d = new Date(t);
+    return d.toLocaleDateString(undefined, { year:"numeric", month:"short", day:"numeric" });
+  }
+
+  function updateCount(){
+    var n = Object.keys(state.del).length;
+    $("actCount").innerHTML = n === 0
+      ? "Nothing selected for deletion."
+      : "<b>" + n + "</b> entr" + (n === 1 ? "y" : "ies") + " selected for deletion.";
+    $("csvBtn").disabled = n === 0;
+    $("copyBtn").disabled = n === 0;
+    $("jsonBtn").disabled = n === 0;
+  }
+
+  /* ---------- interaction ---------- */
+
+  function groupById(gid){
+    return state.groups.filter(function(x){ return x.id === gid; })[0];
+  }
+
+  $("groups").addEventListener("change", function(e){
+    var t = e.target, gid, g, id;
+
+    if(t.hasAttribute("data-multi")){
+      gid = t.getAttribute("data-multi");
+      g = groupById(gid); if(!g) return;
+      if(t.checked){
+        state.multi[gid] = true;
+        markRestForDeletion(g);
+      } else {
+        delete state.multi[gid];
+        // collapse back to a single keeper: the best-ranked row still kept
+        var kept = keptIds(gid), winner = null;
+        for(var i=0;i<g.rows.length;i++){ if(kept[g.rows[i].id]){ winner = g.rows[i]; break; } }
+        state.keep[gid] = Object.create(null);
+        if(winner){
+          state.keep[gid][winner.id] = true;
+          g.rows.forEach(function(r){
+            if(r.id === winner.id) delete state.del[r.id]; else state.del[r.id] = true;
+          });
+        }
+      }
+      render();
+
+    } else if(t.hasAttribute("data-keep")){          // single-keeper radio
+      gid = t.getAttribute("data-keep");
+      g = groupById(gid); if(!g) return;
+      state.keep[gid] = Object.create(null);
+      state.keep[gid][t.value] = true;
+      delete state.del[t.value];
+      g.rows.forEach(function(r){ if(r.id !== t.value) state.del[r.id] = true; });
+      render();
+
+    } else if(t.hasAttribute("data-keepmulti")){     // multi-keeper checkbox
+      gid = t.getAttribute("data-keepmulti");
+      g = groupById(gid); if(!g) return;
+      if(t.checked){
+        var wasEmpty = keptCountOf(gid) === 0;
+        keptIds(gid)[t.value] = true;
+        delete state.del[t.value];
+        if(wasEmpty) markRestForDeletion(g);   // first keeper settles the rest of the group
+      } else {
+        delete keptIds(gid)[t.value];
+        state.del[t.value] = true;         // unkept means marked for deletion; untick Delete to leave it alone
+      }
+      render();
+
+    } else if(t.hasAttribute("data-del")){
+      id = t.getAttribute("data-del");
+      gid = t.getAttribute("data-delgroup");
+      if(t.checked){
+        state.del[id] = true;
+        if(gid) delete keptIds(gid)[id];
+      } else {
+        delete state.del[id];
+      }
+      render();
+    }
+  });
+
+  ["search","onlyReview"].forEach(function(id){
+    $(id).addEventListener("input", render);
+    $(id).addEventListener("change", render);
+  });
+  ["hostMatch","ignorePw"].forEach(function(id){
+    $(id).addEventListener("change", function(){ if(state.raw) build(); });
+  });
+  $("resetPicks").addEventListener("click", function(){ applyRecommended(); render(); });
+
+  $("pickBtn").addEventListener("click", function(){ $("fileInput").click(); });
+  $("fileInput").addEventListener("change", function(e){
+    if(e.target.files && e.target.files[0]) readFile(e.target.files[0]);
+  });
+
+  var drop = $("drop");
+  ["dragenter","dragover"].forEach(function(ev){
+    drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.add("hot"); });
+  });
+  ["dragleave","drop"].forEach(function(ev){
+    drop.addEventListener(ev, function(e){ e.preventDefault(); drop.classList.remove("hot"); });
+  });
+  drop.addEventListener("drop", function(e){
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if(f) readFile(f);
+  });
+
+  $("clearBtn").addEventListener("click", function(){
+    state.raw = null; state.logins = []; state.groups = [];
+    state.keep = Object.create(null); state.multi = Object.create(null); state.del = Object.create(null);
+    state.fileName = ""; state.stats = null;
+    $("fileInput").value = "";
+    $("groups").innerHTML = ""; $("notices").innerHTML = ""; $("summary").innerHTML = "";
+    $("fileLabel").textContent = "";
+    $("results").classList.add("hidden");
+    $("footer").classList.add("hidden");
+    $("clearBtn").classList.add("hidden");
+    $("intake").classList.remove("hidden");
+    var stale = document.querySelector("#intake .notice"); if(stale) stale.remove();
+  });
+
+  /* ---------- outputs ---------- */
+
+  function deleteRows(){
+    var out = [];
+    state.groups.forEach(function(g){
+      var kept = keptIds(g.id);
+      var keepers = g.rows.filter(function(x){ return kept[x.id]; });
+      var keeperNames = keepers.map(function(x){ return x.name; }).join(" | ");
+      var keeperIds = keepers.map(function(x){ return x.id; }).join(" ");
+      g.rows.forEach(function(r){
+        if(state.del[r.id]){
+          out.push({
+            group: g.label,
+            name: r.name,
+            username: r.user,
+            folder: r.folder,
+            id: r.id,
+            changed: r.revision,
+            keptInstead: keeperNames,
+            keptId: keeperIds
+          });
+        }
+      });
+    });
+    return out;
+  }
+
+  function csvText(){
+    var rows = deleteRows();
+    var head = ["site","entry_name","username","folder","item_id","last_changed","keeping_instead","keeping_item_id"];
+    var lines = [head.join(",")];
+    rows.forEach(function(r){
+      lines.push([r.group,r.name,r.username,r.folder,r.id,r.changed,r.keptInstead,r.keptId].map(function(v){
+        v = String(v === undefined || v === null ? "" : v);
+        return /[",\n]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v;
+      }).join(","));
+    });
+    return lines.join("\n");
+  }
+
+  function download(text, filename, mime){
+    var blob = new Blob([text], { type: mime });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+  }
+
+  function stamp(){
+    var d = new Date();
+    function p(n){ return (n < 10 ? "0" : "") + n; }
+    return d.getFullYear() + p(d.getMonth()+1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes());
+  }
+
+  $("csvBtn").addEventListener("click", function(){
+    download(csvText(), "vault-delete-list-" + stamp() + ".csv", "text/csv");
+  });
+
+  $("copyBtn").addEventListener("click", function(){
+    var rows = deleteRows();
+    var text = rows.map(function(r){
+      return r.group + "  |  " + r.name + "  |  " + (r.username || "(no username)") +
+             (r.folder ? "  |  " + r.folder : "") + "   -> keep: " + r.keptInstead;
+    }).join("\n");
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){
+        $("copyBtn").textContent = "Copied";
+        setTimeout(function(){ $("copyBtn").textContent = "Copy delete list"; }, 1500);
+      }, function(){ showText("Copy failed. Select the text below instead.", text); });
+    } else {
+      showText("Select the text below and copy it.", text);
+    }
+  });
+
+  function showText(msg, text){
+    $("dlgMsg").textContent = msg;
+    $("dlgText").value = text;
+    $("textDlg").showModal();
+  }
+  $("dlgClose").addEventListener("click", function(){ $("textDlg").close(); });
+
+  $("jsonBtn").addEventListener("click", function(){
+    var del = state.del;
+    var clone = JSON.parse(JSON.stringify(state.raw));
+    clone.items = (clone.items || []).filter(function(it){ return !(it && it.id && del[it.id]); });
+    download(JSON.stringify(clone, null, 2), "vault-deduped-" + stamp() + ".json", "application/json");
+    showText(
+      "Saved a copy of the export with " + Object.keys(del).length + " entries removed. " +
+      "Importing this back into Bitwarden adds entries, it does not replace your vault — you would end up with everything twice. " +
+      "Use it as a clean record, or delete the listed entries inside Bitwarden instead. Delete both files once you are done.",
+      csvText()
+    );
+  });
+
+})();
+</script>
+</body>
+</html>
