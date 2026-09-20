@@ -1,6 +1,6 @@
 # BW-basic-dedupe
 
-A single HTML file that reads a Bitwarden JSON export, groups entries that are copies of each other, and helps you decide which copy to keep — giving priority to the one holding a passkey or an authenticator code. It produces a deletion list you work through inside Bitwarden. It never changes your vault.
+A single HTML file that reads a Bitwarden JSON export, groups entries that are copies of each other, and helps you decide which copy to keep — giving priority to the one holding a passkey or an authenticator code. It produces a deletion list you work through inside Bitwarden or use the updated JSON to import to a freshly emptied vault. It never directly changes your vault.
 
 
 ## How it handles your data
@@ -61,7 +61,7 @@ Some groups get **no** preselection and an amber warning instead, because an aut
 - **Re-importing the cleaned JSON adds entries, it does not replace your vault.** You would end up with everything twice. Treat the cleaned file as a record; do the deleting in Bitwarden.
 - **Domain matching is a heuristic.** Registrable domains are derived with a short list of known multi-part suffixes (`co.uk`, `com.au`, and so on) rather than the full Public Suffix List, so an unusual suffix may group more loosely than you expect. Switch to hostname matching if that matters for your vault.
 - **Only login items are examined.** Cards, identities, and secure notes are ignored, as are items in the trash.
-- **Nothing is deleted for you**, by design. The output is a list you act on yourself.
+- **Nothing is deleted for you**, by design. The output is a list you act on yourself or import the updated list to a freshly cleaned vault.
 
 ## Browser support
 
